@@ -2,12 +2,14 @@
 
 import irc.bot
 import irc.strings
-from irc.client import ip_numstr_to_quad, ip_quad_to_numstr
+from irc.client import ip_numstr_to_quad
 import re
+
 
 class PlusPlusBot(irc.bot.SingleServerIRCBot):
     def __init__(self, channel, nickname, server, port=6667):
-        irc.bot.SingleServerIRCBot.__init__(self, [(server, port)], nickname, nickname)
+        irc.bot.SingleServerIRCBot.__init__(self, [(server, port)], nickname,
+                                            nickname)
         self.channel = channel
         self.record = {}
 
@@ -17,11 +19,8 @@ class PlusPlusBot(irc.bot.SingleServerIRCBot):
     def on_welcome(self, c, e):
         c.join(self.channel)
 
-    commands = [(re.compile(pat), handler) for pat, handler in
-        [
-            (r'^(\w+)\+\+$', self.handle_increment),
-        ]
-    ]
+    def on_nosuchchannel(self, c, e):
+        print("No such channel")
 
     def handle_increment(self, match):
         target = match.group(1)
@@ -29,21 +28,27 @@ class PlusPlusBot(irc.bot.SingleServerIRCBot):
         self.record[target] = val
 
         msg = "{}++, now at {}".format(target, val)
-        self.connection.privmsg(channel, msg)
+        self.connection.privmsg(self.channel, msg)
+
+    commands = [(re.compile(pat), handler) for pat, handler in
+                [
+                    (r'^(\w+)\+\+$', handle_increment),
+                ]
+                ]
 
     def on_pubmsg(self, c, e):
         contents = e.arguments[0]
-        print contents
-        for rx, handler in commands:
+        for rx, handler in self.commands:
             match = rx.match(contents)
             if match is not None:
-                handler(match)
+                handler(self, match)
                 return
+
 
 def main():
     import sys
     if len(sys.argv) != 4:
-        print("Usage: testbot <server[:port]> <channel> <nickname>")
+        print("Usage: testbot <server[:port]> <#channel> <nickname>")
         sys.exit(1)
 
     s = sys.argv[1].split(":", 1)
